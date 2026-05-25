@@ -758,8 +758,13 @@
       }
 
       function stopSpin() {
-        const centers = currentCenterSymbols();
-        const matched = centers.every((s) => s === centers[0]);
+        // Use the actual DOM middle images to determine the current visible symbols,
+        // because visual state may be mid-animation and logical indices can be out of sync.
+        const centers = reels.map((reel) => {
+          const img = reel.element.querySelectorAll('.slot-img')[1];
+          return img ? img.src : null;
+        });
+        const matched = centers.every((s) => s && s === centers[0]);
 
         setSpinningState(false);
 
