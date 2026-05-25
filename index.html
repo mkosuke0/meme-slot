@@ -563,6 +563,18 @@
       function updateFundsDisplay() {
         const el = document.getElementById('fundsDisplay');
         if (el) el.textContent = `所持金: ${funds}G`;
+        if (funds <= 0) {
+          handleGameOver();
+        }
+      }
+
+      function handleGameOver() {
+        // Disable controls and show GAME OVER status
+        statusText.textContent = 'GAME OVER';
+        const spinBtn = document.getElementById('spinButton');
+        if (spinBtn) spinBtn.disabled = true;
+        document.querySelectorAll('input[name="betMultiplier"]').forEach((el) => { el.disabled = true; });
+        stopButtons.forEach((b) => { if (b) b.disabled = true; });
       }
 
       function buildReels() {
@@ -834,6 +846,9 @@
           return;
         }
         statusText.textContent = "停止中";
+        if (funds <= 0) {
+          handleGameOver();
+        }
       }
 
       function stopSpin() {
