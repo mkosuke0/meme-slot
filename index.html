@@ -223,6 +223,19 @@
         -webkit-user-drag: none;
       }
 
+      /* initial fade-in from screen corner */
+      .slot-img {
+        opacity: 0;
+        transform: translate(-20px, -20px) scale(0.98);
+        transition: transform 360ms cubic-bezier(.2,.8,.2,1), opacity 360ms ease;
+        will-change: transform, opacity;
+      }
+
+      .slot-img.visible {
+        opacity: 1;
+        transform: translate(0, 0) scale(1);
+      }
+
       .spinning .frame img {
         filter: saturate(1.18) contrast(1.08) brightness(1.04);
         animation: wobble 0.22s linear infinite alternate;
@@ -833,12 +846,24 @@
         setTimeout(alignReelsToButtons, 80);
       });
 
+      // Fade in images from screen corner on first load
+      function fadeInFromCorner() {
+        const imgs = Array.from(document.querySelectorAll('.slot-img'));
+        imgs.forEach((img, i) => {
+          img.classList.remove('visible');
+          // staggered appearance
+          setTimeout(() => img.classList.add('visible'), 80 + i * 60);
+        });
+      }
+
       preloadImages();
       buildReels();
       reels.forEach(renderReel);
       startSpin();
       // initial alignment
       setTimeout(alignReelsToButtons, 80);
+      // initial fade-in from corner
+      setTimeout(fadeInFromCorner, 120);
     </script>
   </body>
 </html>
