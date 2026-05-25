@@ -676,8 +676,9 @@
         reel.animating = true;
         // move up by one row (frame is 3 rows)
         reel.stripTy = '-33.333%';
-        // use transform transition
-        strip.style.transition = 'transform 140ms linear';
+        // use transform transition sized to reel.speed so visual tick matches timer
+        const transMs = Math.max(12, Math.round(reel.speed));
+        strip.style.transition = `transform ${transMs}ms linear`;
         updateStripTransform(reel);
         const onEnd = (e) => {
           if (e.propertyName !== 'transform') return;
