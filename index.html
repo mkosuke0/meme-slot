@@ -472,14 +472,27 @@
           <h1>身内ミームスロット</h1>
           <p class="subtitle">`sozai` フォルダの写真を順番にぐるぐる回します。ボタンを押した瞬間に停止し、3つそろったら特別演出が出ます。</p>
           <div class="status-row">
-            <div class="status" id="statusText">回転中</div>
-          </div>
+          <div class="status" id="statusText">回転中</div>
+          <div style="width:18px"></div>
+          <div class="status" id="fundsDisplay">所持金: 0G</div>
+        </div>
         </header>
 
         <div class="stage">
           <div class="reels" id="reels" aria-live="polite"></div>
 
           <div class="controls">
+            <div class="bet-controls" style="display:flex;gap:10px;align-items:center;margin-bottom:8px;pointer-events:auto">
+              <div style="color:var(--muted);font-weight:700">倍率</div>
+              <label><input type="radio" name="betMultiplier" value="1" checked> x1</label>
+              <label><input type="radio" name="betMultiplier" value="3"> x3</label>
+              <label><input type="radio" name="betMultiplier" value="5"> x5</label>
+              <label><input type="radio" name="betMultiplier" value="10"> x10</label>
+              <label><input type="radio" name="betMultiplier" value="30"> x30</label>
+            </div>
+            <div style="display:flex;justify-content:center;margin-bottom:8px">
+              <button id="spinButton" type="button" aria-label="スピンを開始する">SPIN</button>
+            </div>
             <div class="stop-buttons" aria-label="各リールの停止ボタン">
               <button id="stopButton1" type="button" aria-label="1番のリールを停止する">STOP 1</button>
               <button id="stopButton2" type="button" aria-label="2番のリールを停止する">STOP 2</button>
@@ -494,7 +507,7 @@
     <div class="win-overlay" id="winOverlay" aria-hidden="true">
       <div class="win-card">
         <h2>大当たり</h2>
-        <p>3つそろったので、お祝い演出を発生させました。<br />身内ミームの圧が強いです。</p>
+        <p id="winText">3つそろったので、お祝い演出を発生させました。<br />身内ミームの圧が強いです。</p>
       </div>
     </div>
 
@@ -525,6 +538,11 @@
       let stoppedReels = new Set();
       let nextStopIndex = 0;
       let winAnimationToken = 0;
+      // money / betting
+      let funds = 100; // starting money
+      const baseCost = 10; // per spin base cost
+      const baseReward = 20; // base reward for a win
+      let selectedMultiplier = 1;
 
       function shuffleArray(arr) {
         const copy = arr.slice();
@@ -540,6 +558,11 @@
           const image = new Image();
           image.src = file;
         }
+      }
+
+      function updateFundsDisplay() {
+        const el = document.getElementById('fundsDisplay');
+        if (el) el.textContent = `所持金: ${funds}G`;
       }
 
       function buildReels() {
@@ -658,16 +681,35 @@
             stopButtons[index].disabled = false;
           }
         });
+        // enable/disable bet controls while spinning
+        document.querySelectorAll('input[name="betMultiplier"]').forEach((el) => { el.disabled = nextState; });
+        // enable/disable spin button
+        const spinBtn = document.getElementById('spinButton');
+        if (spinBtn) spinBtn.disabled = nextState;
         statusText.textContent = nextState ? "回転中" : "停止中";
       }
 
       function startSpin() {
+        // read selected multiplier from radio buttons
+        const sel = document.querySelector('input[name="betMultiplier"]:checked');
+        selectedMultiplier = sel ? Number(sel.value) : 1;
+        const cost = baseCost * selectedMultiplier;
+        if (funds < cost) {
+          statusText.textContent = '所持金不足';
+          return;
+        }
+        // deduct cost immediately
+        funds -= cost;
+        updateFundsDisplay();
+
         reels.forEach((reel) => {
           // reshuffle each reel on start for more randomness
           reel.sequence = shuffleArray(imageFiles);
           reel.index = Math.floor(Math.random() * reel.sequence.length);
           clearReelTimer(reel);
           reel.stopped = false;
+          // clear any previous locked final center
+          reel.finalCenter = null;
         });
         stoppedReels = new Set();
         setSpinningState(true);
@@ -689,13 +731,15 @@
         });
       }
 
-      function showWinOverlay() {
+      function showWinOverlay(amount) {
         winAnimationToken += 1;
         const token = winAnimationToken;
 
         winOverlay.classList.add("show");
         winOverlay.setAttribute("aria-hidden", "false");
         statusText.textContent = "大当たり";
+        const wt = document.getElementById('winText');
+        if (wt) wt.innerHTML = `3つそろったので、お祝い演出を発生させました。<br />獲得: ${amount}G`;
 
         createConfetti();
         createSparks();
@@ -757,30 +801,53 @@
         }
       }
 
-      function stopSpin() {
-        // Use the actual DOM middle images to determine the current visible symbols,
-        // because visual state may be mid-animation and logical indices can be out of sync.
-        const centers = reels.map((reel) => {
-          const img = reel.element.querySelectorAll('.slot-img')[1];
-          return img ? img.src : null;
-        });
-        const matched = centers.every((s) => s && s === centers[0]);
-
-        setSpinningState(false);
-
-        if (matched) {
-          showWinOverlay();
+      function evaluateWin(retries = 8) {
+        // If any reel is still animating, wait a bit and retry (up to retries times).
+        if (retries > 0 && reels.some((r) => r.animating)) {
+          setTimeout(() => evaluateWin(retries - 1), 60);
           return;
         }
+        // Evaluate visible middle images for a win.
+        function normalizeSrc(src) {
+          if (!src) return null;
+          try {
+            const u = new URL(src, location.href);
+            const parts = u.pathname.split('/');
+            const name = parts.pop() || parts.pop();
+            return decodeURIComponent(name || '').toLowerCase();
+          } catch (e) {
+            return String(src).toLowerCase();
+          }
+        }
 
+        const centers = reels.map((reel) => {
+          if (reel.finalCenterNormalized) return reel.finalCenterNormalized;
+          const img = reel.element.querySelectorAll('.slot-img')[1];
+          return img ? normalizeSrc(img.src) : null;
+        });
+        const matched = centers.every((s) => s && s === centers[0]);
+        if (matched) {
+          const reward = baseReward * selectedMultiplier;
+          funds += reward;
+          updateFundsDisplay();
+          showWinOverlay(reward);
+          return;
+        }
         statusText.textContent = "停止中";
+      }
+
+      function stopSpin() {
+        // mark UI as stopped immediately, but wait for visual animations to finish
+        setSpinningState(false);
+        // animation duration used for vertical tick is ~140ms; wait slightly longer
+        setTimeout(evaluateWin, 160);
       }
 
       function stopReel(index) {
         const reel = reels[index];
 
         if (!spinning) {
-          startSpin();
+          // ignore stops when not spinning
           return;
         }
 
@@ -794,6 +861,10 @@
           return;
         }
 
+        // capture current logical index and whether an animation is in-progress
+        const wasAnimating = !!reel.animating;
+        const currentIndex = reel.index;
+
         clearReelTimer(reel);
         reel.stopped = true;
         stoppedReels.add(index);
@@ -801,6 +872,29 @@
         reel.element.classList.add("stopped");
         stopButtons[index].disabled = true;
         stopButtons[index].textContent = `STOPPED ${index + 1}`;
+
+        // Determine the logical final center symbol based on current index and whether
+        // a tick animation was in-flight. If animating, the index will be advanced
+        // once the transition completes, so account for that.
+        try {
+          const seq = reel.sequence || imageFiles;
+          const len = seq.length;
+          const finalIdx = wasAnimating ? (currentIndex + 2) % len : (currentIndex + 1) % len;
+          const finalSrc = seq[finalIdx];
+          reel.finalCenter = finalSrc || null;
+          // store normalized filename key for comparison
+          try {
+            const u = new URL(reel.finalCenter, location.href);
+            const parts = u.pathname.split('/');
+            const name = parts.pop() || parts.pop();
+            reel.finalCenterNormalized = decodeURIComponent(name || '').toLowerCase();
+          } catch (e) {
+            reel.finalCenterNormalized = reel.finalCenter ? String(reel.finalCenter).toLowerCase() : null;
+          }
+        } catch (e) {
+          reel.finalCenter = null;
+          reel.finalCenterNormalized = null;
+        }
 
         // advance nextStopIndex and enable the next button if applicable
         nextStopIndex += 1;
@@ -821,9 +915,17 @@
         });
       });
 
+      // Spin button handler
+      const spinButton = document.getElementById('spinButton');
+      if (spinButton) {
+        spinButton.addEventListener('click', () => {
+          startSpin();
+        });
+      }
+
       winOverlay.addEventListener("click", () => {
+        // simply hide the overlay; do NOT auto-start a new spin
         hideWinOverlay();
-        startSpin();
       });
 
       // Align each reel's horizontal center to the corresponding stop button center.
@@ -864,7 +966,7 @@
       preloadImages();
       buildReels();
       reels.forEach(renderReel);
-      startSpin();
+      updateFundsDisplay();
       // initial alignment
       setTimeout(alignReelsToButtons, 80);
       // initial fade-in from corner
