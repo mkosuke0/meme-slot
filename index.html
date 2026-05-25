@@ -553,9 +553,12 @@
             images: Array.from(reel.querySelectorAll(".slot-img")),
             sequence,
             index: Math.floor(Math.random() * sequence.length),
-            speed: 90,
+            speed: 160,
             timer: null,
             stopped: false,
+            stripTx: 0,
+            stripTy: '0',
+            animating: false,
           });
         }
       }
@@ -570,10 +573,48 @@
         }
       }
 
+      // helper to apply combined transforms (tx in px, ty as CSS value like '0' or '-33.333%')
+      function updateStripTransform(reel) {
+        const strip = reel.element.querySelector('.strip');
+        if (!strip) return;
+        const tx = reel.stripTx || 0;
+        const ty = reel.stripTy || '0';
+        strip.style.transform = `translateX(${tx}px) translateY(${ty})`;
+      }
+
+      function animateTick(reel) {
+        if (reel.animating) return;
+        const strip = reel.element.querySelector('.strip');
+        if (!strip) return;
+        reel.animating = true;
+        // move up by one row (frame is 3 rows)
+        reel.stripTy = '-33.333%';
+        // use transform transition
+        strip.style.transition = 'transform 140ms linear';
+        updateStripTransform(reel);
+        const onEnd = (e) => {
+          if (e.propertyName !== 'transform') return;
+          strip.removeEventListener('transitionend', onEnd);
+          // advance logical index and re-render images
+          const seq = reel.sequence || imageFiles;
+          const len = seq.length;
+          reel.index = (reel.index + 1) % len;
+          renderReel(reel);
+          // reset translateY without animation
+          strip.style.transition = 'none';
+          reel.stripTy = '0';
+          updateStripTransform(reel);
+          // force reflow then clear inline transition
+          void strip.offsetWidth;
+          strip.style.transition = '';
+          reel.animating = false;
+        };
+        strip.addEventListener('transitionend', onEnd);
+      }
+
       function tickReel(reel) {
-        const len = (reel.sequence || imageFiles).length;
-        reel.index = (reel.index + 1) % len;
-        renderReel(reel);
+        // animate the visual tick
+        animateTick(reel);
       }
 
       function clearReelTimer(reel) {
