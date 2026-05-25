@@ -141,9 +141,11 @@
       }
 
       .reels {
-        display: flex;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
         gap: 16px;
-        align-items: flex-start;
+        width: min(1080px, calc(100vw - 24px));
+        margin: 0 auto;
       }
 
       .reel {
@@ -160,6 +162,7 @@
         display: flex;
         flex-direction: column;
         justify-content: center;
+        flex: 1 1 0;
       }
 
       .reel::before {
@@ -240,7 +243,7 @@
         justify-items: center;
         z-index: 20;
         pointer-events: none;
-        padding: 0 24px;
+        padding: 0;
       }
 
       .stop-buttons {
@@ -727,10 +730,37 @@
         startSpin();
       });
 
+      // Align each reel's horizontal center to the corresponding stop button center.
+      function alignReelsToButtons() {
+        const container = reelsContainer.getBoundingClientRect();
+        stopButtons.forEach((btn, i) => {
+          const reel = reels[i];
+          if (!reel) return;
+          const btnRect = btn.getBoundingClientRect();
+          const btnCenter = btnRect.left + btnRect.width / 2 - container.left;
+          const midImg = reel.element.querySelectorAll('.slot-img')[1];
+          if (!midImg) return;
+          const midRect = midImg.getBoundingClientRect();
+          const midCenter = midRect.left + midRect.width / 2 - container.left;
+          const delta = Math.round(btnCenter - midCenter);
+          const strip = reel.element.querySelector('.strip');
+          if (strip) {
+            strip.style.transform = `translateX(${delta}px)`;
+            strip.style.transition = 'transform 0ms';
+          }
+        });
+      }
+
+      window.addEventListener('resize', () => {
+        setTimeout(alignReelsToButtons, 80);
+      });
+
       preloadImages();
       buildReels();
       reels.forEach(renderReel);
       startSpin();
+      // initial alignment
+      setTimeout(alignReelsToButtons, 80);
     </script>
   </body>
 </html>
