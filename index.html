@@ -510,7 +510,17 @@
       const reels = [];
       let spinning = false;
       let stoppedReels = new Set();
+      let nextStopIndex = 0;
       let winAnimationToken = 0;
+
+      function shuffleArray(arr) {
+        const copy = arr.slice();
+        for (let i = copy.length - 1; i > 0; i -= 1) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [copy[i], copy[j]] = [copy[j], copy[i]];
+        }
+        return copy;
+      }
 
       function preloadImages() {
         for (const file of imageFiles) {
@@ -536,10 +546,13 @@
             </div>
           `;
           reelsContainer.appendChild(reel);
+          // each reel gets its own shuffled sequence
+          const sequence = shuffleArray(imageFiles);
           reels.push({
             element: reel,
             images: Array.from(reel.querySelectorAll(".slot-img")),
-            index: (index * 2) % imageFiles.length,
+            sequence,
+            index: Math.floor(Math.random() * sequence.length),
             speed: 90,
             timer: null,
             stopped: false,
@@ -548,16 +561,18 @@
       }
 
       function renderReel(reel) {
-        const len = imageFiles.length;
+        const seq = reel.sequence || imageFiles;
+        const len = seq.length;
         for (let i = 0; i < 3; i += 1) {
           const idx = (reel.index + i) % len;
-          reel.images[i].src = imageFiles[idx];
+          reel.images[i].src = seq[idx];
           reel.images[i].alt = `ミーム画像 ${idx + 1}`;
         }
       }
 
       function tickReel(reel) {
-        reel.index = (reel.index + 1) % imageFiles.length;
+        const len = (reel.sequence || imageFiles).length;
+        reel.index = (reel.index + 1) % len;
         renderReel(reel);
       }
 
@@ -581,13 +596,22 @@
               ? `${index + 1}番のリールを停止する`
               : `${index + 1}番のリールを再スタートする`,
           );
-          stopButtons[index].disabled = false;
+          // when starting spin, only enable the next required button (left-to-right)
+          if (nextState) {
+            nextStopIndex = 0;
+            stopButtons[index].disabled = index !== nextStopIndex;
+          } else {
+            stopButtons[index].disabled = false;
+          }
         });
         statusText.textContent = nextState ? "回転中" : "停止中";
       }
 
       function startSpin() {
         reels.forEach((reel) => {
+          // reshuffle each reel on start for more randomness
+          reel.sequence = shuffleArray(imageFiles);
+          reel.index = Math.floor(Math.random() * reel.sequence.length);
           clearReelTimer(reel);
           reel.stopped = false;
         });
@@ -605,8 +629,9 @@
 
       function currentCenterSymbols() {
         return reels.map((reel) => {
-          const len = imageFiles.length;
-          return imageFiles[(reel.index + 1) % len];
+          const seq = reel.sequence || imageFiles;
+          const len = seq.length;
+          return seq[(reel.index + 1) % len];
         });
       }
 
@@ -700,6 +725,12 @@
           return;
         }
 
+        // enforce stop order: only allow stopping the next expected reel
+        if (index !== nextStopIndex) {
+          // ignore out-of-order clicks
+          return;
+        }
+
         if (reel.stopped) {
           return;
         }
@@ -711,6 +742,12 @@
         reel.element.classList.add("stopped");
         stopButtons[index].disabled = true;
         stopButtons[index].textContent = `STOPPED ${index + 1}`;
+
+        // advance nextStopIndex and enable the next button if applicable
+        nextStopIndex += 1;
+        if (nextStopIndex < reels.length) {
+          stopButtons[nextStopIndex].disabled = false;
+        }
 
         if (stoppedReels.size !== reels.length) {
           return;
