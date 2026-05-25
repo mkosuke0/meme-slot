@@ -203,13 +203,19 @@
         height: 100%;
         width: 100%;
         min-height: 0;
+        justify-items: center;
+        align-items: center;
       }
 
       .slot-img {
-        width: 100%;
+        width: auto;
+        max-width: 100%;
         height: 100%;
         object-fit: contain;
-          display: block;
+        display: block;
+        justify-self: center;
+        align-self: center;
+        margin: 0 auto;
         user-select: none;
         -webkit-user-drag: none;
       }
