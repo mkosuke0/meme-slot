@@ -364,6 +364,54 @@
         line-height: 1.8;
         color: #eef8f0;
       }
+      @keyframes pop {
+        0% { transform: scale(0.5); opacity: 0; }
+        20% { opacity: 1; }
+        100% { transform: scale(2.8) translateY(-48px); opacity: 0; }
+      }
+
+      /* big flashy effects for wins */
+      .big-flash {
+        position: fixed;
+        inset: 0;
+        background: radial-gradient(circle at center, rgba(255,255,255,0.95), rgba(255,255,255,0.6) 30%, rgba(255,255,255,0) 60%);
+        pointer-events: none;
+        opacity: 0;
+        transform: scale(0.96);
+        transition: opacity 220ms ease, transform 220ms ease;
+        z-index: 9999;
+      }
+
+      .big-flash.show {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      .shake {
+        animation: screenShake 820ms cubic-bezier(.25,.8,.25,1) both;
+      }
+
+      @keyframes screenShake {
+        0% { transform: translate3d(0,0,0); }
+        10% { transform: translate3d(-6px, -4px, 0) rotate(-0.6deg); }
+        20% { transform: translate3d(6px, 4px, 0) rotate(0.6deg); }
+        30% { transform: translate3d(-4px, 2px, 0) rotate(-0.4deg); }
+        40% { transform: translate3d(4px, -2px, 0) rotate(0.4deg); }
+        100% { transform: translate3d(0,0,0); }
+      }
+
+      .win-image.big {
+        animation: pulse 700ms cubic-bezier(.2,.9,.2,1) 0ms 2, blast 860ms ease-out 0ms 1;
+        transform-origin: center center;
+        filter: drop-shadow(0 20px 40px rgba(125,255,178,0.28));
+      }
+
+      @keyframes blast {
+        0% { transform: scale(1) rotate(0deg); }
+        30% { transform: scale(1.28) rotate(-3deg); }
+        60% { transform: scale(0.98) rotate(2deg); }
+        100% { transform: scale(1.06) rotate(0deg); }
+      }
 
       .win-image-wrap {
         display: flex;
@@ -789,20 +837,36 @@
           }
         }
 
+        // dramatic flash + shake
+        const flash = document.createElement('div');
+        flash.className = 'big-flash show';
+        flash.id = 'bigFlash';
+        document.body.appendChild(flash);
+        document.body.classList.add('shake');
+
         winOverlay.classList.add("show");
         winOverlay.setAttribute("aria-hidden", "false");
         statusText.textContent = "大当たり";
         const wt = document.getElementById('winText');
         if (wt) wt.innerHTML = `3つそろったので、お祝い演出を発生させました。<br />獲得: ${amount}G`;
 
-        createConfetti();
+        // big confetti and sparks
+        createConfetti(80);
         createSparks();
+
+        // emphasize win image
+        if (winImg && imgSrc) {
+          winImg.classList.add('big');
+        }
 
         window.setTimeout(() => {
           if (token !== winAnimationToken) {
             return;
           }
           clearConfetti();
+          // remove flash and shake after effect
+          const f = document.getElementById('bigFlash'); if (f) f.remove();
+          document.body.classList.remove('shake');
         }, 1200);
       }
 
@@ -812,29 +876,34 @@
         if (winImg) {
           winImg.src = '';
           winImg.classList.remove('visible');
+          winImg.classList.remove('big');
         }
         winOverlay.classList.remove("show");
         winOverlay.setAttribute("aria-hidden", "true");
         clearConfetti();
+        const f = document.getElementById('bigFlash'); if (f) f.remove();
+        document.body.classList.remove('shake');
       }
 
-      function createConfetti() {
+      function createConfetti(pieces = 30) {
         clearConfetti();
 
-        const colors = ["#ffcc4d", "#7dffb2", "#ff6f61", "#82cfff", "#ffffff"];
-        const pieces = 30;
+        const colors = ["#ffcc4d", "#7dffb2", "#ff6f61", "#82cfff", "#ffffff", "#ffd1e0", "#b8ffdd"];
 
         for (let index = 0; index < pieces; index += 1) {
           const piece = document.createElement("div");
           piece.className = "confetti";
           piece.style.left = `${Math.random() * 100}vw`;
           piece.style.background = colors[index % colors.length];
-          piece.style.width = `${8 + Math.random() * 8}px`;
-          piece.style.height = `${10 + Math.random() * 12}px`;
-          piece.style.opacity = `${0.75 + Math.random() * 0.25}`;
-          piece.style.setProperty("--drift", `${(Math.random() - 0.5) * 260}px`);
-          piece.style.animationDuration = `${1200 + Math.random() * 700}ms`;
-          piece.style.animationDelay = `${Math.random() * 120}ms`;
+          const w = 6 + Math.random() * 18;
+          const h = 8 + Math.random() * 28;
+          piece.style.width = `${w}px`;
+          piece.style.height = `${h}px`;
+          piece.style.opacity = `${0.6 + Math.random() * 0.45}`;
+          piece.style.setProperty("--drift", `${(Math.random() - 0.5) * 360}px`);
+          piece.style.animationDuration = `${900 + Math.random() * 1200}ms`;
+          piece.style.animationDelay = `${Math.random() * 240}ms`;
+          piece.style.transform = `rotate(${Math.random() * 360}deg)`;
           document.body.appendChild(piece);
         }
       }
