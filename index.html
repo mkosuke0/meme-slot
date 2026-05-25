@@ -365,6 +365,37 @@
         color: #eef8f0;
       }
 
+      .win-image-wrap {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 14px;
+      }
+
+      .win-image {
+        width: 64%;
+        max-width: 420px;
+        height: auto;
+        border-radius: 12px;
+        box-shadow: 0 18px 40px rgba(0,0,0,0.45), 0 4px 8px rgba(0,0,0,0.3);
+        transform-origin: center center;
+        will-change: transform, filter;
+        animation: pulse 900ms ease-in-out infinite, twitch 140ms steps(2, end) infinite;
+      }
+
+      @keyframes pulse {
+        0% { transform: scale(0.96); filter: drop-shadow(0 6px 18px rgba(0,0,0,0.28)); }
+        50% { transform: scale(1.06); filter: drop-shadow(0 12px 28px rgba(0,0,0,0.38)); }
+        100% { transform: scale(0.96); filter: drop-shadow(0 6px 18px rgba(0,0,0,0.28)); }
+      }
+
+      @keyframes twitch {
+        0% { transform: translateY(0) rotate(0deg); }
+        25% { transform: translateY(-2px) rotate(-1deg); }
+        50% { transform: translateY(0) rotate(0deg); }
+        75% { transform: translateY(1px) rotate(1deg); }
+        100% { transform: translateY(0) rotate(0deg); }
+      }
+
       .spark {
         position: absolute;
         width: 12px;
@@ -506,6 +537,7 @@
 
     <div class="win-overlay" id="winOverlay" aria-hidden="true">
       <div class="win-card">
+        <div class="win-image-wrap"><img id="winImage" class="win-image" alt="当たり画像" src="" /></div>
         <h2>大当たり</h2>
         <p id="winText">3つそろったので、お祝い演出を発生させました。<br />身内ミームの圧が強いです。</p>
       </div>
@@ -750,9 +782,21 @@
         });
       }
 
-      function showWinOverlay(amount) {
+      function showWinOverlay(amount, imgSrc) {
         winAnimationToken += 1;
         const token = winAnimationToken;
+
+        // set win image if provided
+        const winImg = document.getElementById('winImage');
+        if (winImg) {
+          if (imgSrc) {
+            winImg.src = imgSrc;
+            winImg.classList.add('visible');
+          } else {
+            winImg.src = '';
+            winImg.classList.remove('visible');
+          }
+        }
 
         winOverlay.classList.add("show");
         winOverlay.setAttribute("aria-hidden", "false");
@@ -773,6 +817,11 @@
 
       function hideWinOverlay() {
         winAnimationToken += 1;
+        const winImg = document.getElementById('winImage');
+        if (winImg) {
+          winImg.src = '';
+          winImg.classList.remove('visible');
+        }
         winOverlay.classList.remove("show");
         winOverlay.setAttribute("aria-hidden", "true");
         clearConfetti();
@@ -849,7 +898,9 @@
           const reward = baseReward * selectedMultiplier;
           funds += reward;
           updateFundsDisplay();
-          showWinOverlay(reward);
+          // choose a display src for the matched image (prefer locked finalCenter)
+          const displaySrc = (reels[0] && reels[0].finalCenter) ? reels[0].finalCenter : currentCenterSymbols()[0];
+          showWinOverlay(reward, displaySrc);
           return;
         }
         statusText.textContent = "停止中";
