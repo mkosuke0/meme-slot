@@ -630,7 +630,7 @@
             images: Array.from(reel.querySelectorAll(".slot-img")),
             sequence,
             index: Math.floor(Math.random() * sequence.length),
-            speed: 162,
+            speed: 243,
             timer: null,
             stopped: false,
             stripTx: 0,
@@ -758,7 +758,7 @@
         hideWinOverlay();
 
         reels.forEach((reel, index) => {
-          reel.speed = 84; // unified speed (slower: half current speed)
+          reel.speed = 126; // unified speed (slower: 2/3 of previous)
           reel.timer = window.setInterval(() => {
             tickReel(reel);
           }, reel.speed);
