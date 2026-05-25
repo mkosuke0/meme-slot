@@ -227,6 +227,25 @@
         padding: 0 24px;
       }
 
+      .stop-buttons {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        width: 100%;
+      }
+
+      .stop-buttons button {
+        min-width: 0;
+        width: 100%;
+      }
+
+      .reset-hint {
+        color: var(--muted);
+        text-align: center;
+        font-size: 0.95rem;
+        line-height: 1.7;
+      }
+
       button {
         appearance: none;
         border: none;
@@ -429,8 +448,12 @@
           <div class="reels" id="reels" aria-live="polite"></div>
 
           <div class="controls">
-            <button id="spinButton" type="button" aria-label="スロットを停止する">STOP</button>
-            <div class="hint">押すたびに再スタートできます。勝ったら画面いっぱいに盛ります。</div>
+            <div class="stop-buttons" aria-label="各リールの停止ボタン">
+              <button id="stopButton1" type="button" aria-label="1番のリールを停止する">STOP 1</button>
+              <button id="stopButton2" type="button" aria-label="2番のリールを停止する">STOP 2</button>
+              <button id="stopButton3" type="button" aria-label="3番のリールを停止する">STOP 3</button>
+            </div>
+            <div class="reset-hint">左から順に止められます。全部止まったらもう一回押して再スタートできます。</div>
           </div>
         </div>
       </section>
@@ -457,13 +480,17 @@
 
       const reelCount = 3;
       const reelsContainer = document.getElementById("reels");
-      const spinButton = document.getElementById("spinButton");
+      const stopButtons = [
+        document.getElementById("stopButton1"),
+        document.getElementById("stopButton2"),
+        document.getElementById("stopButton3"),
+      ];
       const statusText = document.getElementById("statusText");
       const winOverlay = document.getElementById("winOverlay");
 
       const reels = [];
-      let timers = [];
       let spinning = false;
+      let stoppedReels = new Set();
       let winAnimationToken = 0;
 
       function preloadImages() {
@@ -491,6 +518,8 @@
             image: reel.querySelector("img"),
             index: (index * 2) % imageFiles.length,
             speed: 90 + index * 24,
+            timer: null,
+            stopped: false,
           });
         }
       }
@@ -505,39 +534,45 @@
         renderReel(reel);
       }
 
-      function clearSpinTimers() {
-        for (const timer of timers) {
-          window.clearInterval(timer);
+      function clearReelTimer(reel) {
+        if (reel.timer !== null) {
+          window.clearInterval(reel.timer);
+          reel.timer = null;
         }
-        timers = [];
       }
 
       function setSpinningState(nextState) {
         spinning = nextState;
-        reels.forEach((reel) => {
+        reels.forEach((reel, index) => {
           reel.element.classList.toggle("spinning", nextState);
           reel.element.classList.toggle("stopped", !nextState);
+          reel.stopped = !nextState;
+          stopButtons[index].textContent = nextState ? `STOP ${index + 1}` : `RESTART ${index + 1}`;
+          stopButtons[index].setAttribute(
+            "aria-label",
+            nextState
+              ? `${index + 1}番のリールを停止する`
+              : `${index + 1}番のリールを再スタートする`,
+          );
+          stopButtons[index].disabled = false;
         });
-        spinButton.textContent = nextState ? "STOP" : "RESTART";
-        spinButton.setAttribute(
-          "aria-label",
-          nextState ? "スロットを停止する" : "スロットを再スタートする",
-        );
         statusText.textContent = nextState ? "回転中" : "停止中";
       }
 
       function startSpin() {
-        clearSpinTimers();
+        reels.forEach((reel) => {
+          clearReelTimer(reel);
+          reel.stopped = false;
+        });
+        stoppedReels = new Set();
         setSpinningState(true);
         hideWinOverlay();
 
         reels.forEach((reel, index) => {
           reel.speed = 85 + index * 28;
-          timers.push(
-            window.setInterval(() => {
-              tickReel(reel);
-            }, reel.speed),
-          );
+          reel.timer = window.setInterval(() => {
+            tickReel(reel);
+          }, reel.speed);
         });
       }
 
@@ -614,11 +649,10 @@
       }
 
       function stopSpin() {
-        clearSpinTimers();
-        setSpinningState(false);
-
         const symbols = currentSymbols();
         const matched = symbols.every((symbol) => symbol === symbols[0]);
+
+        setSpinningState(false);
 
         if (matched) {
           showWinOverlay();
@@ -628,13 +662,37 @@
         statusText.textContent = "停止中";
       }
 
-      spinButton.addEventListener("click", () => {
-        if (spinning) {
-          stopSpin();
+      function stopReel(index) {
+        const reel = reels[index];
+
+        if (!spinning) {
+          startSpin();
           return;
         }
 
-        startSpin();
+        if (reel.stopped) {
+          return;
+        }
+
+        clearReelTimer(reel);
+        reel.stopped = true;
+        stoppedReels.add(index);
+        reel.element.classList.remove("spinning");
+        reel.element.classList.add("stopped");
+        stopButtons[index].disabled = true;
+        stopButtons[index].textContent = `STOPPED ${index + 1}`;
+
+        if (stoppedReels.size !== reels.length) {
+          return;
+        }
+
+        stopSpin();
+      }
+
+      stopButtons.forEach((button, index) => {
+        button.addEventListener("click", () => {
+          stopReel(index);
+        });
       });
 
       winOverlay.addEventListener("click", () => {
