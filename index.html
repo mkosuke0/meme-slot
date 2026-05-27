@@ -223,17 +223,12 @@
         -webkit-user-drag: none;
       }
 
-      /* initial fade-in from screen corner */
+      /* ensure images are visible by default (disable initial hidden state) */
       .slot-img {
-        opacity: 0;
-        transform: translate(-20px, -20px) scale(0.98);
+        opacity: 1;
+        transform: none;
         transition: transform 360ms cubic-bezier(.2,.8,.2,1), opacity 360ms ease;
         will-change: transform, opacity;
-      }
-
-      .slot-img.visible {
-        opacity: 1;
-        transform: translate(0, 0) scale(1);
       }
 
       .spinning .frame img {
@@ -689,6 +684,10 @@
           const idx = (reel.index + i) % len;
           reel.images[i].src = seq[idx];
           reel.images[i].alt = `ミーム画像 ${idx + 1}`;
+          // ensure image is visible (fade-in class may be applied on first render)
+          if (!reel.images[i].classList.contains('visible')) {
+            reel.images[i].classList.add('visible');
+          }
         }
       }
 
