@@ -512,7 +512,7 @@
         }
       }
 
-      @media (max-width: 900px) {
+      @media (max-width: 520px) {
         .reels {
           grid-template-columns: 1fr;
         }
@@ -1018,10 +1018,11 @@
           return;
         }
 
-        // capture current logical index and whether an animation is in-progress
-        const wasAnimating = !!reel.animating;
+        // capture current logical index and fractional rAF progress before stopping
         const currentIndex = reel.index;
+        const rafProgress = typeof reel._rafProgress === 'number' ? reel._rafProgress : 0;
 
+        // stop timers/loops after capturing progress
         clearReelTimer(reel);
         reel.stopped = true;
         stoppedReels.add(index);
@@ -1038,7 +1039,9 @@
         try {
           const seq = reel.sequence || imageFiles;
           const len = seq.length;
-          const finalIdx = wasAnimating ? (currentIndex + 2) % len : (currentIndex + 1) % len;
+          // use fractional progress to decide whether the visual has advanced to next tick
+          const advance = rafProgress > 0.5 ? 2 : 1;
+          const finalIdx = (currentIndex + advance) % len;
           const finalSrc = seq[finalIdx];
           reel.finalCenter = finalSrc || null;
           // store normalized filename key for comparison
@@ -1119,10 +1122,12 @@
           const midRect = midImg.getBoundingClientRect();
           const midCenter = midRect.left + midRect.width / 2 - container.left;
           const delta = Math.round(btnCenter - midCenter);
+          // store horizontal offset on the reel and update transform via helper
+          reel.stripTx = delta;
           const strip = reel.element.querySelector('.strip');
           if (strip) {
-            strip.style.transform = `translateX(${delta}px)`;
             strip.style.transition = 'transform 0ms';
+            updateStripTransform(reel);
           }
         });
       }
