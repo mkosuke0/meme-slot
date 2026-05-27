@@ -707,35 +707,63 @@
         strip.style.transform = `translateX(${tx}px) translateY(${ty})`;
       }
 
-      function animateTick(reel) {
-        if (reel.animating) return;
+      // requestAnimationFrame ベースの滑らかなティックアニメーション
+      function reelFrame(timestamp, reel) {
+        if (!reel._rafLast) reel._rafLast = timestamp;
+        const dt = Math.min(64, timestamp - reel._rafLast); // clamp
+        reel._rafLast = timestamp;
+        const duration = Math.max(16, reel.speed);
+        reel._rafProgress = (reel._rafProgress || 0) + dt / duration;
+
+        // ensure strip exists
         const strip = reel.element.querySelector('.strip');
-        if (!strip) return;
-        reel.animating = true;
-        // move up by one row (frame is 3 rows)
-        reel.stripTy = '-33.333%';
-        // use transform transition sized to reel.speed so visual tick matches timer
-        const transMs = Math.max(12, Math.round(reel.speed));
-        strip.style.transition = `transform ${transMs}ms linear`;
-        updateStripTransform(reel);
-        const onEnd = (e) => {
-          if (e.propertyName !== 'transform') return;
-          strip.removeEventListener('transitionend', onEnd);
-          // advance logical index and re-render images
+        if (!strip) {
+          // schedule next frame if still running
+          reel._rafId = requestAnimationFrame((t) => reelFrame(t, reel));
+          return;
+        }
+
+        if (reel._rafProgress < 1) {
+          reel.animating = true;
+          reel.stripTy = `${-33.333 * reel._rafProgress}%`;
+          // avoid CSS transitions for rAF-driven motion
+          strip.style.transition = 'none';
+          updateStripTransform(reel);
+        } else {
+          // complete one or more ticks
+          const ticks = Math.floor(reel._rafProgress);
+          reel._rafProgress = reel._rafProgress - ticks;
           const seq = reel.sequence || imageFiles;
           const len = seq.length;
-          reel.index = (reel.index + 1) % len;
+          reel.index = (reel.index + ticks) % len;
           renderReel(reel);
-          // reset translateY without animation
+          // apply leftover progress
+          reel.stripTy = `${-33.333 * reel._rafProgress}%`;
           strip.style.transition = 'none';
-          reel.stripTy = '0';
           updateStripTransform(reel);
-          // force reflow then clear inline transition
-          void strip.offsetWidth;
-          strip.style.transition = '';
-          reel.animating = false;
-        };
-        strip.addEventListener('transitionend', onEnd);
+          reel.animating = reel._rafProgress > 0 && reel._rafProgress < 1;
+        }
+
+        // schedule next
+        reel._rafId = requestAnimationFrame((t) => reelFrame(t, reel));
+      }
+
+      function startReelLoop(reel) {
+        // avoid duplicate loops
+        if (reel._rafId) return;
+        reel._rafLast = 0;
+        reel._rafProgress = 0;
+        reel._rafId = requestAnimationFrame((t) => reelFrame(t, reel));
+      }
+
+      function stopReelLoop(reel) {
+        if (reel._rafId) {
+          cancelAnimationFrame(reel._rafId);
+          reel._rafId = null;
+        }
+        reel._rafLast = 0;
+        reel._rafProgress = 0;
+        reel.animating = false;
       }
 
       function tickReel(reel) {
@@ -748,6 +776,8 @@
           window.clearInterval(reel.timer);
           reel.timer = null;
         }
+        // also cancel any rAF loop
+        stopReelLoop(reel);
       }
 
       function setSpinningState(nextState) {
@@ -807,9 +837,9 @@
 
         reels.forEach((reel, index) => {
           reel.speed = 126; // unified speed (slower: 2/3 of previous)
-          reel.timer = window.setInterval(() => {
-            tickReel(reel);
-          }, reel.speed);
+          // start rAF-driven smooth loop
+          reel.timer = null;
+          startReelLoop(reel);
         });
       }
 
