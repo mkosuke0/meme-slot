@@ -231,6 +231,27 @@
         will-change: transform, opacity;
       }
 
+      /* highlight effect for winning images */
+      @keyframes highlightGlow {
+        0% { filter: drop-shadow(0 0 0 rgba(255,220,90,0)); }
+        50% { filter: drop-shadow(0 0 18px rgba(255,220,90,0.95)); }
+        100% { filter: drop-shadow(0 0 0 rgba(255,220,90,0)); }
+      }
+
+      @keyframes twitch {
+        0% { transform: translateY(0) rotate(0deg); }
+        20% { transform: translateY(-6px) rotate(-2deg); }
+        40% { transform: translateY(3px) rotate(2deg); }
+        60% { transform: translateY(-3px) rotate(-1deg); }
+        100% { transform: translateY(0) rotate(0deg); }
+      }
+
+      .slot-img.highlight {
+        animation: highlightGlow 900ms ease-in-out 0s 2, twitch 420ms ease-in-out 0s 3;
+        z-index: 3;
+        transform-origin: center;
+      }
+
       .spinning .frame img {
         filter: saturate(1.18) contrast(1.08) brightness(1.04);
         animation: wobble 0.22s linear infinite alternate;
@@ -844,7 +865,7 @@
         });
       }
 
-      function showWinOverlay(amount, imgSrc) {
+      function showWinOverlay(amount, imgSrc, line) {
         winAnimationToken += 1;
         const token = winAnimationToken;
 
@@ -882,6 +903,17 @@
           winImg.classList.add('big');
         }
 
+        // highlight the matched images (line is array of row indices per reel)
+        if (Array.isArray(line)) {
+          // clear previous highlights
+          document.querySelectorAll('.slot-img.highlight').forEach((n) => n.classList.remove('highlight'));
+          reels.forEach((reel, j) => {
+            const row = typeof line[j] === 'number' ? line[j] : 1;
+            const img = reel.element.querySelectorAll('.slot-img')[row];
+            if (img) img.classList.add('highlight');
+          });
+        }
+
         window.setTimeout(() => {
           if (token !== winAnimationToken) {
             return;
@@ -890,6 +922,8 @@
           // remove flash and shake after effect
           const f = document.getElementById('bigFlash'); if (f) f.remove();
           document.body.classList.remove('shake');
+          // clear highlight after effect
+          document.querySelectorAll('.slot-img.highlight').forEach((n) => n.classList.remove('highlight'));
         }, 1200);
       }
 
@@ -906,6 +940,8 @@
         clearConfetti();
         const f = document.getElementById('bigFlash'); if (f) f.remove();
         document.body.classList.remove('shake');
+        // remove any highlight classes
+        document.querySelectorAll('.slot-img.highlight').forEach((n) => n.classList.remove('highlight'));
       }
 
       function createConfetti(pieces = 30) {
@@ -1003,7 +1039,7 @@
           const displayIdx = found.line[0];
           const displayImg = reels[0].element.querySelectorAll('.slot-img')[displayIdx];
           const displaySrc = displayImg ? displayImg.src : (reels[0] && reels[0].finalCenter) || currentCenterSymbols()[0];
-          showWinOverlay(reward, displaySrc);
+          showWinOverlay(reward, displaySrc, found.line);
           return;
         }
         statusText.textContent = "停止中";
