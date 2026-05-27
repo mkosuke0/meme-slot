@@ -1108,21 +1108,14 @@
         hideWinOverlay();
       });
 
-      // Align each reel's horizontal center to the central stop button center.
+      // Align each reel's horizontal center. When using a single central stop
+      // button, avoid shifting reels to the same x (would overlap); instead
+      // keep each reel's horizontal offset at 0 so images stay centered in
+      // their own frames.
       function alignReelsToButtons() {
-        const container = reelsContainer.getBoundingClientRect();
-        if (!centerStopButton) return;
-        const btnRect = centerStopButton.getBoundingClientRect();
-        const btnCenter = btnRect.left + btnRect.width / 2 - container.left;
         reels.forEach((reel) => {
           if (!reel) return;
-          const midImg = reel.element.querySelectorAll('.slot-img')[1];
-          if (!midImg) return;
-          const midRect = midImg.getBoundingClientRect();
-          const midCenter = midRect.left + midRect.width / 2 - container.left;
-          const delta = Math.round(btnCenter - midCenter);
-          // store horizontal offset on the reel and update transform via helper
-          reel.stripTx = delta;
+          reel.stripTx = 0;
           const strip = reel.element.querySelector('.strip');
           if (strip) {
             strip.style.transition = 'transform 0ms';
