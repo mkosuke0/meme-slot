@@ -971,18 +971,38 @@
           }
         }
 
-        const centers = reels.map((reel) => {
-          if (reel.finalCenterNormalized) return reel.finalCenterNormalized;
-          const img = reel.element.querySelectorAll('.slot-img')[1];
-          return img ? normalizeSrc(img.src) : null;
-        });
-        const matched = centers.every((s) => s && s === centers[0]);
-        if (matched) {
+        // Build candidate lines: three horizontal rows and two diagonals.
+        // Each line is an array of row indices for reels [r0, r1, r2].
+        const lines = [
+          [0, 0, 0], // top row
+          [1, 1, 1], // middle row
+          [2, 2, 2], // bottom row
+          [0, 1, 2], // diagonal top-left -> bottom-right
+          [2, 1, 0], // diagonal bottom-left -> top-right
+        ];
+
+        let found = null;
+        for (const line of lines) {
+          const symbols = reels.map((reel, j) => {
+            // prefer explicit locked finalCenter when it corresponds to middle row
+            if (line[j] === 1 && reel.finalCenterNormalized) return reel.finalCenterNormalized;
+            const img = reel.element.querySelectorAll('.slot-img')[line[j]];
+            return img ? normalizeSrc(img.src) : null;
+          });
+          if (symbols.every((s) => s && s === symbols[0])) {
+            found = {line, symbol: symbols[0]};
+            break;
+          }
+        }
+
+        if (found) {
           const reward = baseReward * selectedMultiplier;
           funds += reward;
           updateFundsDisplay();
-          // choose a display src for the matched image (prefer locked finalCenter)
-          const displaySrc = (reels[0] && reels[0].finalCenter) ? reels[0].finalCenter : currentCenterSymbols()[0];
+          // choose a display src for the matched image (prefer reel 0's corresponding image)
+          const displayIdx = found.line[0];
+          const displayImg = reels[0].element.querySelectorAll('.slot-img')[displayIdx];
+          const displaySrc = displayImg ? displayImg.src : (reels[0] && reels[0].finalCenter) || currentCenterSymbols()[0];
           showWinOverlay(reward, displaySrc);
           return;
         }
