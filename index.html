@@ -572,10 +572,8 @@
             <div style="display:flex;justify-content:center;margin-bottom:8px">
               <button id="spinButton" type="button" aria-label="スピンを開始する">SPIN</button>
             </div>
-            <div class="stop-buttons" aria-label="各リールの停止ボタン">
-              <button id="stopButton1" type="button" aria-label="1番のリールを停止する">STOP 1</button>
-              <button id="stopButton2" type="button" aria-label="2番のリールを停止する">STOP 2</button>
-              <button id="stopButton3" type="button" aria-label="3番のリールを停止する">STOP 3</button>
+            <div class="stop-buttons" aria-label="停止ボタン（中央）" style="display:flex;justify-content:center;">
+              <button id="centerStopButton" type="button" aria-label="リールを順に停止する">STOP</button>
             </div>
             <div class="reset-hint">左から順に止められます。全部止まったらもう一回押して再スタートできます。</div>
           </div>
@@ -602,11 +600,7 @@
 
       const reelCount = 3;
       const reelsContainer = document.getElementById("reels");
-      const stopButtons = [
-        document.getElementById("stopButton1"),
-        document.getElementById("stopButton2"),
-        document.getElementById("stopButton3"),
-      ];
+      const centerStopButton = document.getElementById("centerStopButton");
       const statusText = document.getElementById("statusText");
       const winOverlay = document.getElementById("winOverlay");
 
@@ -651,7 +645,7 @@
         const spinBtn = document.getElementById('spinButton');
         if (spinBtn) spinBtn.disabled = true;
         document.querySelectorAll('input[name="betMultiplier"]').forEach((el) => { el.disabled = true; });
-        stopButtons.forEach((b) => { if (b) b.disabled = true; });
+        if (centerStopButton) centerStopButton.disabled = true;
       }
 
       function buildReels() {
@@ -782,25 +776,25 @@
 
       function setSpinningState(nextState) {
         spinning = nextState;
-        reels.forEach((reel, index) => {
+        reels.forEach((reel) => {
           reel.element.classList.toggle("spinning", nextState);
           reel.element.classList.toggle("stopped", !nextState);
           reel.stopped = !nextState;
-          stopButtons[index].textContent = nextState ? `STOP ${index + 1}` : `RESTART ${index + 1}`;
-          stopButtons[index].setAttribute(
-            "aria-label",
-            nextState
-              ? `${index + 1}番のリールを停止する`
-              : `${index + 1}番のリールを再スタートする`,
-          );
-          // when starting spin, only enable the next required button (left-to-right)
-          if (nextState) {
-            nextStopIndex = 0;
-            stopButtons[index].disabled = index !== nextStopIndex;
-          } else {
-            stopButtons[index].disabled = false;
-          }
         });
+        // single center stop button controls stopping order
+        if (nextState) {
+          nextStopIndex = 0;
+          if (centerStopButton) {
+            centerStopButton.disabled = false;
+            centerStopButton.textContent = `STOP`;
+            centerStopButton.setAttribute('aria-label', 'リールを順に停止する');
+          }
+        } else {
+          if (centerStopButton) {
+            centerStopButton.disabled = true;
+            centerStopButton.textContent = `STOP`;
+          }
+        }
         // enable/disable bet controls while spinning
         document.querySelectorAll('input[name="betMultiplier"]').forEach((el) => { el.disabled = nextState; });
         // enable/disable spin button
@@ -1033,8 +1027,10 @@
         stoppedReels.add(index);
         reel.element.classList.remove("spinning");
         reel.element.classList.add("stopped");
-        stopButtons[index].disabled = true;
-        stopButtons[index].textContent = `STOPPED ${index + 1}`;
+        // update center button state: keep enabled until all reels stopped
+        if (centerStopButton) {
+          centerStopButton.textContent = `STOP`;
+        }
 
         // Determine the logical final center symbol based on current index and whether
         // a tick animation was in-flight. If animating, the index will be advanced
@@ -1078,21 +1074,24 @@
         // advance nextStopIndex and enable the next button if applicable
         nextStopIndex += 1;
         if (nextStopIndex < reels.length) {
-          stopButtons[nextStopIndex].disabled = false;
+          if (centerStopButton) centerStopButton.disabled = false;
         }
 
         if (stoppedReels.size !== reels.length) {
           return;
         }
 
+        // all reels stopped
+        if (centerStopButton) centerStopButton.disabled = true;
         stopSpin();
       }
 
-      stopButtons.forEach((button, index) => {
-        button.addEventListener("click", () => {
-          stopReel(index);
+      if (centerStopButton) {
+        centerStopButton.addEventListener('click', () => {
+          if (!spinning) return;
+          stopReel(nextStopIndex);
         });
-      });
+      }
 
       // Spin button handler
       const spinButton = document.getElementById('spinButton');
@@ -1107,14 +1106,14 @@
         hideWinOverlay();
       });
 
-      // Align each reel's horizontal center to the corresponding stop button center.
+      // Align each reel's horizontal center to the central stop button center.
       function alignReelsToButtons() {
         const container = reelsContainer.getBoundingClientRect();
-        stopButtons.forEach((btn, i) => {
-          const reel = reels[i];
+        if (!centerStopButton) return;
+        const btnRect = centerStopButton.getBoundingClientRect();
+        const btnCenter = btnRect.left + btnRect.width / 2 - container.left;
+        reels.forEach((reel) => {
           if (!reel) return;
-          const btnRect = btn.getBoundingClientRect();
-          const btnCenter = btnRect.left + btnRect.width / 2 - container.left;
           const midImg = reel.element.querySelectorAll('.slot-img')[1];
           if (!midImg) return;
           const midRect = midImg.getBoundingClientRect();
