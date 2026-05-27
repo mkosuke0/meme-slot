@@ -1054,6 +1054,22 @@
           } catch (e) {
             reel.finalCenterNormalized = reel.finalCenter ? String(reel.finalCenter).toLowerCase() : null;
           }
+
+          // Snap visuals to the computed final center: set reel.index so that middle image is finalIdx
+          const desiredIndex = ((finalIdx - 1) % len + len) % len;
+          reel.index = desiredIndex;
+          renderReel(reel);
+          // reset strip transform to centered without animation
+          const strip = reel.element.querySelector('.strip');
+          if (strip) {
+            strip.style.transition = 'none';
+            reel.stripTy = '0';
+            updateStripTransform(reel);
+            // force reflow then clear any inline transition
+            void strip.offsetWidth;
+            strip.style.transition = '';
+          }
+          reel.animating = false;
         } catch (e) {
           reel.finalCenter = null;
           reel.finalCenterNormalized = null;
